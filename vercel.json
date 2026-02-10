@@ -1,0 +1,21 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "regions": ["hnd1"],
+  "headers": [
+    {
+      "source": "/api/games",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, s-maxage=180, stale-while-revalidate=360"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "public, max-age=180"
+        }
+      ]
+    }
+  ]
+}
