@@ -52,29 +52,24 @@ export default function Home() {
 
         const data: NPBGameData = await response.json();
         
-        // NPBデータをGame[]に変換
         const convertedGames: Game[] = [];
 
         data.games.forEach((dayData) => {
-          // 日付を解析（例: "6月1日" or "2025年6月1日"）
           let year = data.year || filter.selectedYear;
           let month = data.month || filter.selectedMonth;
           let day = 1;
 
-          // パターン1: "2025年6月1日"
           const dateMatch1 = dayData.date.match(/(\d+)年(\d+)月(\d+)日/);
           if (dateMatch1) {
             year = parseInt(dateMatch1[1]);
             month = parseInt(dateMatch1[2]);
             day = parseInt(dateMatch1[3]);
           } else {
-            // パターン2: "6月1日"
             const dateMatch2 = dayData.date.match(/(\d+)月(\d+)日/);
             if (dateMatch2) {
               month = parseInt(dateMatch2[1]);
               day = parseInt(dateMatch2[2]);
             } else {
-              console.warn('Invalid date format:', dayData.date);
               return;
             }
           }
@@ -97,7 +92,7 @@ export default function Home() {
             });
           });
         });
-
+        
         setGames(convertedGames);
       } catch (err) {
         console.error('Error fetching games:', err);
