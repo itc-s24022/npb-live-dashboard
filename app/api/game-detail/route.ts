@@ -14,19 +14,12 @@ export async function GET(request: NextRequest) {
     const gameId = searchParams.get('gameId');
 
     if (!gameId) {
-      return NextResponse.json(
-        { error: 'Game IDが必要です' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Game IDが必要です' }, { status: 400 });
     }
-
-    console.log(`[Game Detail API] Fetching data for gameId: ${gameId}`);
 
     await delay(SCRAPING_DELAY);
 
     const url = `https://npb.jp/bis/2025/games/${gameId}.html`;
-    console.log(`[Game Detail API] URL: ${url}`);
-
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -39,148 +32,126 @@ export async function GET(request: NextRequest) {
 
     const html = await response.text();
     const $ = cheerio.load(html);
-
+    
     const tables = $('table');
-    console.log(`[Game Detail API] Found ${tables.length} tables`);
-
-    // テーブル0から球場と試合情報を取得
-    const firstTable = tables.eq(0);
-    const firstRow = firstTable.find('tr').first();
-    const cells = firstRow.find('td');
     
-    const stadium = $(cells[0]).text().trim();
-    const infoText = $(cells[1]).text().trim();
+    // テーブル4: 球場と試合情報
+    const infoTable = tables.eq(4);
+    const infoRow = infoTable.find('tr').first();
+    const infoCells = infoRow.find('td');
     
-    console.log(`[Game Detail API] Stadium: ${stadium}`);
-    console.log(`[Game Detail API] Info: ${infoText}`);
+    const stadium = $(infoCells.eq(0)).text().trim();
+    const infoText = $(infoCells.eq(1)).text().trim();
     
+    // 試合時間、開始・終了時刻を抽出
     const timeMatch = infoText.match(/試合時間\s*-\s*([\d：]+)\s*\(\s*開始([\d:]+)\s*終了([\d:]+)\s*\)/);
-    const duration = timeMatch ? timeMatch[1] : '';
+    const duration = timeMatch ? timeMatch[1].replace('：', ':') : '';
     const startTime = timeMatch ? timeMatch[2] : '';
     const endTime = timeMatch ? timeMatch[3] : '';
-
+    
+    // 入場者数を抽出
     const attendanceMatch = infoText.match(/入場者\s*-\s*([\d,]+)/);
     const attendance = attendanceMatch ? parseInt(attendanceMatch[1].replace(/,/g, '')) : 0;
 
-    // テーブル1からスコア情報を取得
-    const scoreTable = tables.eq(1);
+    console.log(`[API] Stadium: ${stadium}, Duration: ${duration}, Time: ${startTime}-${endTime}, Attendance: ${attendance}`);
+
+    // テーブル5: スコアテーブル
+    const scoreTable = tables.eq(5);
     const scoreRows = scoreTable.find('tr');
     
+    // 行1: ビジターチーム（東京ヤクルト）
+    // 行2: ホームチーム（横浜DeNA）
     const awayRow = scoreRows.eq(1);
     const homeRow = scoreRows.eq(2);
-
-    const awayTeam = awayRow.find('td').first().text().trim();
-    const homeTeam = homeRow.find('td').first().text().trim();
-
-    console.log(`[Game Detail API] Teams: ${awayTeam} vs ${homeTeam}`);
-
-    // イニングスコアを取得
-    const parseInningScores = (row: cheerio.Cheerio<cheerio.Element>) => {
-      const cells = row.find('td');
-      const scores: number[] = [];
-      
-      for (let i = 1; i < cells.length; i++) {
-        const cellText = $(cells[i]).text().trim();
-        
-        if (cellText === 'Ｒ' || cellText === 'Ｈ' || cellText === 'Ｅ') {
-          break;
-        }
-        
-        if (cellText === '' || cellText === '-' || cellText === 'X') {
-          continue;
-        }
-        
-        const score = parseInt(cellText);
-        if (!isNaN(score)) {
-          scores.push(score);
-        }
-      }
-      
-      return scores;
-    };
-
-    const awayInningScores = parseInningScores(awayRow);
-    const homeInningScores = parseInningScores(homeRow);
-
-    // R, H, E を取得
-    const getLastThreeValues = (row: cheerio.Cheerio<cheerio.Element>) => {
-      const cells = row.find('td');
-      const r = parseInt($(cells[cells.length - 3]).text().trim()) || 0;
-      const h = parseInt($(cells[cells.length - 2]).text().trim()) || 0;
-      const e = parseInt($(cells[cells.length - 1]).text().trim()) || 0;
-      return { r, h, e };
-    };
-
-    const awayRHE = getLastThreeValues(awayRow);
-    const homeRHE = getLastThreeValues(homeRow);
-
-    // 投手情報を取得
-    const pitcherTable = tables.eq(2);
-    const pitcherRows = pitcherTable.find('tr');
     
-    let winningPitcher = '';
-    let losingPitcher = '';
-    let savePitcher = '';
+    // チーム名を取得
+    const awayTeam = awayRow.find('td').eq(0).text().trim();
+    const homeTeam = homeRow.find('td').eq(0).text().trim();
+    
+    console.log(`[API] Away: ${awayTeam}, Home: ${homeTeam}`);
 
-    pitcherRows.each((_, row) => {
-      const rowText = $(row).text();
-      if (rowText.includes('勝投手')) {
-        winningPitcher = $(row).find('td').eq(1).text().trim();
-      } else if (rowText.includes('敗投手')) {
-        losingPitcher = $(row).find('td').eq(1).text().trim();
-      } else if (rowText.includes('セーブ')) {
-        savePitcher = $(row).find('td').eq(1).text().trim();
+    // スコア解析関数
+    const parseScoreRow = (row: cheerio.Cheerio<cheerio.Element>) => {
+      const cells = row.find('td');
+      const innings: number[] = [];
+      let r = 0, h = 0, e = 0;
+      
+      // '-'の位置を探す
+      let dashIndex = -1;
+      cells.each((idx, cell) => {
+        if ($(cell).text().trim() === '-') {
+          dashIndex = idx;
+        }
+      });
+      
+      if (dashIndex === -1) {
+        console.log('[API] Warning: No dash found in row');
+        return { innings: [], r: 0, h: 0, e: 0 };
       }
-    });
+      
+      // '-'の後の3つがR/H/E
+      r = parseInt($(cells[dashIndex + 1]).text().trim()) || 0;
+      h = parseInt($(cells[dashIndex + 2]).text().trim()) || 0;
+      e = parseInt($(cells[dashIndex + 3]).text().trim()) || 0;
+      
+      // チーム名の後から'-'の前までがイニングスコア
+      for (let i = 1; i < dashIndex; i++) {
+        const text = $(cells[i]).text().trim();
+        if (text === '' || text === 'X') {
+          continue; // 空セルとXをスキップ
+        }
+        const score = parseInt(text);
+        if (!isNaN(score)) {
+          innings.push(score);
+        }
+      }
+      
+      return { innings, r, h, e };
+    };
+    
+    const awayData = parseScoreRow(awayRow);
+    const homeData = parseScoreRow(homeRow);
+
+    console.log(`[API] Away: R=${awayData.r}, H=${awayData.h}, E=${awayData.e}, Innings=[${awayData.innings.join(',')}]`);
+    console.log(`[API] Home: R=${homeData.r}, H=${homeData.h}, E=${homeData.e}, Innings=[${homeData.innings.join(',')}]`);
 
     const gameData = {
       gameId,
       date: '2025年06月01日',
       stadium,
       attendance,
-      time: `${startTime}`,
-      endTime: `${endTime}`,
+      time: startTime,
+      endTime,
       duration,
       inningScores: {
-        away: awayInningScores,
-        home: homeInningScores,
+        away: awayData.innings,
+        home: homeData.innings,
       },
-      homeScore: homeRHE.r,
-      awayScore: awayRHE.r,
-      homeTeam,
+      awayScore: awayData.r,
+      homeScore: homeData.r,
       awayTeam,
+      homeTeam,
       runs: {
-        away: awayRHE.r,
-        home: homeRHE.r,
+        away: awayData.r,
+        home: homeData.r,
       },
       hits: {
-        away: awayRHE.h,
-        home: homeRHE.h,
+        away: awayData.h,
+        home: homeData.h,
       },
       errors: {
-        away: awayRHE.e,
-        home: homeRHE.e,
+        away: awayData.e,
+        home: homeData.e,
       },
       status: '試合終了',
-      winningPitcher: winningPitcher || undefined,
-      losingPitcher: losingPitcher || undefined,
-      savePitcher: savePitcher || undefined,
     };
 
-    const responseTime = Date.now() - startTime;
-    console.log(`[Game Detail API] Success - Response time: ${responseTime}ms`);
-
     return NextResponse.json(gameData, {
-      headers: {
-        'Cache-Control': `public, s-maxage=${CACHE_DURATION}`,
-      },
+      headers: { 'Cache-Control': `public, s-maxage=${CACHE_DURATION}` },
     });
 
   } catch (error) {
-    console.error('[Game Detail API] Error:', error);
-    return NextResponse.json(
-      { error: 'データ取得に失敗しました' },
-      { status: 500 }
-    );
+    console.error('[API] Error:', error);
+    return NextResponse.json({ error: 'データ取得に失敗しました' }, { status: 500 });
   }
 }

@@ -1,0 +1,118 @@
+export const TEAMS: Record<string, {
+  id: string;
+  fullName: string;
+  shortName: string;
+  icon: string;
+  primaryColor: string;
+  secondaryColor: string;
+  league: string;
+}> = {
+  giants: {
+    id: 'giants',
+    fullName: '読売ジャイアンツ',
+    shortName: '巨人',
+    icon: '巨',
+    primaryColor: '#F97316',
+    secondaryColor: '#FFFFFF',
+    league: 'セントラル・リーグ',
+  },
+  hanshin: {
+    id: 'hanshin',
+    fullName: '阪神タイガース',
+    shortName: '阪神',
+    icon: '神',
+    primaryColor: '#FFE500',
+    secondaryColor: '#1F2937',
+    league: 'セントラル・リーグ',
+  },
+  carp: {
+    id: 'carp',
+    fullName: '広島東洋カープ',
+    shortName: '広島',
+    icon: '広',
+    primaryColor: '#DC2626',
+    secondaryColor: '#FFFFFF',
+    league: 'セントラル・リーグ',
+  },
+  baystars: {
+    id: 'baystars',
+    fullName: '横浜DeNAベイスターズ',
+    shortName: 'DeNA',
+    icon: 'デ',
+    primaryColor: '#0EA5E9',
+    secondaryColor: '#FFFFFF',
+    league: 'セントラル・リーグ',
+  },
+  dragons: {
+    id: 'dragons',
+    fullName: '中日ドラゴンズ',
+    shortName: '中日',
+    icon: '中',
+    primaryColor: '#0284C7',
+    secondaryColor: '#FFFFFF',
+    league: 'セントラル・リーグ',
+  },
+  swallows: {
+    id: 'swallows',
+    fullName: '東京ヤクルトスワローズ',
+    shortName: 'ヤクルト',
+    icon: 'ヤ',
+    primaryColor: '#059669',
+    secondaryColor: '#FFFFFF',
+    league: 'セントラル・リーグ',
+  },
+  hawks: {
+    id: 'hawks',
+    fullName: '福岡ソフトバンクホークス',
+    shortName: 'ソフトバンク',
+    icon: 'ソ',
+    primaryColor: '#FCD34D',
+    secondaryColor: '#1F2937',
+    league: 'パシフィック・リーグ',
+  },
+  lions: {
+    id: 'lions',
+    fullName: '埼玉西武ライオンズ',
+    shortName: '西武',
+    icon: '西',
+    primaryColor: '#0369A1',
+    secondaryColor: '#FFFFFF',
+    league: 'パシフィック・リーグ',
+  },
+  marines: {
+    id: 'marines',
+    fullName: '千葉ロッテマリーンズ',
+    shortName: 'ロッテ',
+    icon: 'ロ',
+    primaryColor: '#1E293B',
+    secondaryColor: '#FFFFFF',
+    league: 'パシフィック・リーグ',
+  },
+  eagles: {
+    id: 'eagles',
+    fullName: '東北楽天ゴールデンイーグルス',
+    shortName: '楽天',
+    icon: '楽',
+    primaryColor: '#991B1B',
+    secondaryColor: '#FFFFFF',
+    league: 'パシフィック・リーグ',
+  },
+  buffaloes: {
+    id: 'buffaloes',
+    fullName: 'オリックス・バファローズ',
+    shortName: 'オリックス',
+    icon: 'オ',
+    primaryColor: '#1E3A8A',
+    secondaryColor: '#FFFFFF',
+    league: 'パシフィック・リーグ',
+  },
+  fighters: {
+    id: 'fighters',
+    fullName: '北海道日本ハムファイターズ',
+    shortName: '日本ハム',
+    icon: '日',
+    primaryColor: '#0EA5E9',
+    secondaryColor: '#FFFFFF',
+    league: 'パシフィック・リーグ',
+  },
+};
