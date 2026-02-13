@@ -1,94 +1,109 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { FilterSettings, AppSettings, TeamId } from '@/types';
 
-interface AppStore {
+interface AppState {
   filter: FilterSettings;
   settings: AppSettings;
-  uiState: {
-    isTeamSelectorOpen: boolean;
-    isYearSelectorOpen: boolean;
-  };
-  setSelectedTeam: (team: TeamId | 'all') => void;
+  showYearSelector: boolean;
+  showTeamSelector: boolean;
   setSelectedYear: (year: number) => void;
   setSelectedMonth: (month: number) => void;
+  setSelectedTeam: (team: TeamId | 'all') => void;
   setTheme: (theme: 'light' | 'dark') => void;
   setFavoriteTeam: (team: TeamId | null) => void;
-  setAutoUpdate: (enabled: boolean) => void;
-  toggleTeamSelector: () => void;
+  setAutoUpdate: (autoUpdate: boolean) => void;
   toggleYearSelector: () => void;
-  closeAllModals: () => void;
+  toggleTeamSelector: () => void;
 }
 
-export const useAppStore = create<AppStore>()(
+// デフォルトは2025年4月（NPBシーズン開始）
+const DEFAULT_YEAR = 2025;
+const DEFAULT_MONTH = 4;
+
+export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       filter: {
-        selectedTeam: 'tigers',
-        selectedYear: 2025,
-        selectedMonth: 6,
+        selectedTeam: 'all',
+        selectedYear: DEFAULT_YEAR,
+        selectedMonth: DEFAULT_MONTH,
       },
       settings: {
         theme: 'dark',
-        favoriteTeam: 'tigers',
+        favoriteTeam: null,
         autoUpdate: true,
       },
-      uiState: {
-        isTeamSelectorOpen: false,
-        isYearSelectorOpen: false,
-      },
-      setSelectedTeam: (team) =>
-        set((state) => ({
-          filter: { ...state.filter, selectedTeam: team },
-        })),
+      showYearSelector: false,
+      showTeamSelector: false,
+
       setSelectedYear: (year) =>
         set((state) => ({
           filter: { ...state.filter, selectedYear: year },
         })),
+
       setSelectedMonth: (month) =>
         set((state) => ({
           filter: { ...state.filter, selectedMonth: month },
         })),
+
+      setSelectedTeam: (team) =>
+        set((state) => ({
+          filter: { ...state.filter, selectedTeam: team },
+          showTeamSelector: false,
+        })),
+
       setTheme: (theme) =>
         set((state) => ({
           settings: { ...state.settings, theme },
         })),
+
       setFavoriteTeam: (team) =>
         set((state) => ({
           settings: { ...state.settings, favoriteTeam: team },
-          filter: { ...state.filter, selectedTeam: team || 'all' },
+          showTeamSelector: false,
         })),
-      setAutoUpdate: (enabled) =>
+
+      setAutoUpdate: (autoUpdate) =>
         set((state) => ({
-          settings: { ...state.settings, autoUpdate: enabled },
+          settings: { ...state.settings, autoUpdate },
         })),
-      toggleTeamSelector: () =>
-        set((state) => ({
-          uiState: {
-            ...state.uiState,
-            isTeamSelectorOpen: !state.uiState.isTeamSelectorOpen,
-            isYearSelectorOpen: false,
-          },
-        })),
+
       toggleYearSelector: () =>
         set((state) => ({
-          uiState: {
-            ...state.uiState,
-            isYearSelectorOpen: !state.uiState.isYearSelectorOpen,
-            isTeamSelectorOpen: false,
-          },
+          showYearSelector: !state.showYearSelector,
+          showTeamSelector: false,
         })),
-      closeAllModals: () =>
+
+      toggleTeamSelector: () =>
         set((state) => ({
-          uiState: {
-            isTeamSelectorOpen: false,
-            isYearSelectorOpen: false,
-          },
+          showTeamSelector: !state.showTeamSelector,
+          showYearSelector: false,
         })),
     }),
     {
       name: 'npb-live-storage',
-      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        filter: state.filter,
+        settings: state.settings,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // 不正な値をクリーンアップ
+          if (!state.filter.selectedTeam || 
+              (state.filter.selectedTeam !== 'all' && 
+               !['giants', 'hanshin', 'dragons', 'baystars', 'carp', 'swallows', 
+                 'hawks', 'marines', 'fighters', 'eagles', 'buffaloes', 'lions'].includes(state.filter.selectedTeam))) {
+            state.filter.selectedTeam = 'all';
+          }
+          
+          // 年が未来の場合はデフォルトに戻す
+          if (state.filter.selectedYear > 2025) {
+            state.filter.selectedYear = DEFAULT_YEAR;
+            state.filter.selectedMonth = DEFAULT_MONTH;
+          }
+        }
+      },
     }
   )
 );

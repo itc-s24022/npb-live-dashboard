@@ -1,6 +1,6 @@
 export type TeamId = 
   | 'giants' 
-  | 'tigers' 
+  | 'hanshin'
   | 'dragons' 
   | 'baystars' 
   | 'carp' 
@@ -34,6 +34,7 @@ export interface Game {
   status: 'scheduled' | 'live' | 'finished' | 'postponed';
   stadium: string;
   attendance?: number;
+  detailUrl?: string;
 }
 
 export interface InningScore {

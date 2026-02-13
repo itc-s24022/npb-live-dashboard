@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-const CACHE_DURATION = 180; // 3分（秒）
-const SCRAPING_DELAY = 5000; // 5秒
+const CACHE_DURATION = 86400; // 24時間（秒）
+const SCRAPING_DELAY = 1000; // 1秒
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
 
   console.log(`[DELAY START] ${SCRAPING_DELAY / 1000}秒の遅延を開始`);
 
-  // 5秒の遅延（必ず実行）
+  // 1秒の遅延（必ず実行）
   await delay(SCRAPING_DELAY);
 
   console.log(`[DELAY END] 遅延完了、スクレイピング開始`);
@@ -158,11 +158,11 @@ export async function GET(request: NextRequest) {
     console.log(`[PERFORMANCE] 総レスポンス時間: ${responseTime}ms`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
-    // Vercel Edge Cacheヘッダー
+    // Vercel Edge Cacheヘッダー（24時間キャッシュ）
     const headers = new Headers();
-    headers.set('Cache-Control', 'public, s-maxage=180, stale-while-revalidate=360');
-    headers.set('CDN-Cache-Control', 'public, max-age=180');
-    headers.set('Vercel-CDN-Cache-Control', 'max-age=180');
+    headers.set('Cache-Control', `public, s-maxage=${CACHE_DURATION}, stale-while-revalidate=${CACHE_DURATION * 2}`);
+    headers.set('CDN-Cache-Control', `public, max-age=${CACHE_DURATION}`);
+    headers.set('Vercel-CDN-Cache-Control', `max-age=${CACHE_DURATION}`);
     headers.set('X-Cache-Status', 'MISS');
     headers.set('X-Cache-Duration', CACHE_DURATION.toString());
     headers.set('X-Response-Time', responseTime.toString());

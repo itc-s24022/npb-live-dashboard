@@ -12,6 +12,8 @@
     "axios": "^1.7.9",
     "cheerio": "^1.0.0",
     "date-fns": "^4.1.0",
+    "encoding-japanese": "^2.2.0",
+    "iconv-lite": "^0.7.2",
     "lucide-react": "^0.469.0",
     "next": "15.5.12",
     "react": "19.0.0",
@@ -20,6 +22,7 @@
   },
   "devDependencies": {
     "@types/cheerio": "^1.0.0",
+    "@types/iconv-lite": "^0.0.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

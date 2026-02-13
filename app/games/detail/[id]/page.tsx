@@ -1,230 +1,264 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
-import { TEAMS } from '@/lib/teams';
-import { MOCK_GAME_DETAIL_20250601 } from '@/lib/mock/gameDetails';
-import { GameDetail, TeamId } from '@/types';
+import React from 'react';
+import Link from 'next/link';
+
+interface GameDetailData {
+  gameId: string;
+  date: string;
+  stadium: string;
+  attendance: number;
+  time: string;
+  endTime: string;
+  duration: string;
+  inningScores: {
+    away: number[];
+    home: number[];
+  };
+  homeScore: number;
+  awayScore: number;
+  homeTeam: string;
+  awayTeam: string;
+  runs: {
+    away: number;
+    home: number;
+  };
+  hits: {
+    away: number;
+    home: number;
+  };
+  errors: {
+    away: number;
+    home: number;
+  };
+  status: string;
+  winningPitcher?: string;
+  losingPitcher?: string;
+  savePitcher?: string;
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default function GameDetailPage({ params }: PageProps) {
-  const router = useRouter();
-  const [gameId, setGameId] = useState<string>('');
-  const [game, setGame] = useState<GameDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [useRealData, setUseRealData] = useState(false);
+  const { id } = React.use(params);
+  
+  const [gameData, setGameData] = React.useState<GameDetailData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  useEffect(() => {
-    params.then((resolvedParams) => {
-      setGameId(resolvedParams.id);
-    });
-  }, [params]);
-
-  useEffect(() => {
-    if (!gameId) return;
-
-    const fetchGameDetail = async () => {
-      setLoading(true);
-      setError(null);
-
+  React.useEffect(() => {
+    async function fetchGameDetail() {
       try {
-        if (useRealData) {
-          const detailUrl = `https://npb.jp/bis/2025/games/s${gameId}.html`;
-          const response = await fetch(`/api/game-detail?url=${encodeURIComponent(detailUrl)}`);
-          
-          if (!response.ok) {
-            throw new Error('データの取得に失敗しました');
-          }
-
-          const data = await response.json();
-          
-          setGame({
-            id: gameId,
-            date: data.date,
-            time: data.time,
-            homeTeam: 'baystars' as TeamId,
-            awayTeam: 'swallows' as TeamId,
-            homeScore: data.homeScore,
-            awayScore: data.awayScore,
-            status: data.status,
-            stadium: data.stadium,
-            attendance: data.attendance,
-            inningScores: data.inningScores,
-            duration: data.duration,
-          });
-        } else {
-          setGame(MOCK_GAME_DETAIL_20250601);
+        setLoading(true);
+        setError(null);
+        
+        const response = await fetch(`/api/game-detail?gameId=${id}`);
+        
+        if (!response.ok) {
+          throw new Error('データ取得に失敗しました');
         }
+        
+        const data = await response.json();
+        console.log('取得したゲーム詳細:', data);
+        setGameData(data);
       } catch (err) {
-        console.error('Error fetching game detail:', err);
-        setError(err instanceof Error ? err.message : 'データの取得に失敗しました');
-        setGame(MOCK_GAME_DETAIL_20250601);
+        console.error('エラー:', err);
+        setError(err instanceof Error ? err.message : 'エラーが発生しました');
       } finally {
         setLoading(false);
       }
-    };
+    }
 
-    fetchGameDetail();
-  }, [gameId, useRealData]);
+    if (id) {
+      fetchGameDetail();
+    }
+  }, [id]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg flex items-center justify-center">
-        <div className="text-gray-900 dark:text-white">読み込み中...</div>
+      <div className="min-h-screen bg-[#1a1d29] flex items-center justify-center">
+        <div className="text-white">読み込み中...</div>
       </div>
     );
   }
 
-  if (error && !game) {
+  if (error || !gameData) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg flex items-center justify-center">
-        <div className="text-red-500">{error}</div>
+      <div className="min-h-screen bg-[#1a1d29] flex items-center justify-center">
+        <div className="text-white">エラーが発生しました</div>
       </div>
     );
   }
-
-  if (!game) {
-    return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg flex items-center justify-center">
-        <div className="text-gray-900 dark:text-white">試合情報が見つかりません</div>
-      </div>
-    );
-  }
-
-  const homeTeam = TEAMS[game.homeTeam];
-  const awayTeam = TEAMS[game.awayTeam];
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg pb-20">
-      {/* Header */}
-      <div className="bg-light-card dark:bg-dark-card border-b border-light-border dark:border-dark-border sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-gray-900 dark:text-white hover:text-primary-green transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5" />
-            <span>戻る</span>
-          </button>
-          <button
-            onClick={() => setUseRealData(!useRealData)}
-            className={`px-3 py-1 rounded text-sm ${
-              useRealData
-                ? 'bg-primary-green text-white'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
-            }`}
-          >
-            {useRealData ? 'リアルデータ' : 'モックデータ'}
-          </button>
+    <div className="min-h-screen bg-[#1a1d29] text-white">
+      {/* ヘッダー */}
+      <div className="bg-[#252935] px-4 py-3 flex items-center">
+        <Link href="/games" className="text-blue-400">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </Link>
+        <div className="ml-3">
+          <h1 className="text-lg font-semibold">試合詳細</h1>
+          <p className="text-xs text-gray-400">{gameData.date}</p>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Game Info Card */}
-        <div className="bg-light-card dark:bg-dark-card rounded-lg p-6 border border-light-border dark:border-dark-border">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {game.date} {game.time}開始
-            </span>
-            <span className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded text-sm">
-              {game.status}
-            </span>
-          </div>
+      {/* 試合ステータス */}
+      <div className="bg-[#1e4d3d] px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+          <span className="text-sm text-green-400">{gameData.status}</span>
+        </div>
+        <span className="text-xs text-gray-300">試合時間 {gameData.duration} {gameData.time}〜{gameData.endTime}</span>
+      </div>
 
-          {/* Score */}
-          <div className="flex items-center justify-between mb-6">
-            {/* Away Team */}
-            <div className="flex items-center gap-3 flex-1">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
-                style={{ backgroundColor: awayTeam.color }}
-              >
-                {awayTeam.shortName}
-              </div>
-              <div>
-                <div className="text-gray-900 dark:text-white font-bold">{awayTeam.name}</div>
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">{game.awayScore}</div>
-              </div>
+      {/* スコア表示 */}
+      <div className="px-4 py-6">
+        {/* ビジターチーム */}
+        <div className="mb-4">
+          <div className="flex items-center mb-2">
+            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold mr-3">
+              De
             </div>
-
-            <div className="text-gray-600 dark:text-gray-400 text-2xl mx-4">-</div>
-
-            {/* Home Team */}
-            <div className="flex items-center gap-3 flex-1 flex-row-reverse">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
-                style={{ backgroundColor: homeTeam.color }}
-              >
-                {homeTeam.shortName}
-              </div>
-              <div className="text-right">
-                <div className="text-gray-900 dark:text-white font-bold">{homeTeam.name}</div>
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">{game.homeScore}</div>
-              </div>
+            <div className="flex-1">
+              <div className="text-white font-medium">{gameData.awayTeam}</div>
+              <div className="text-xs text-gray-400">ベイスターズ</div>
             </div>
-          </div>
-
-          {/* Stadium & Attendance */}
-          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 border-t border-light-border dark:border-dark-border pt-4">
-            <span>{game.stadium}</span>
-            {game.attendance && <span>観客数: {game.attendance.toLocaleString()}人</span>}
-            {game.duration && <span>試合時間: {game.duration}</span>}
+            <div className="text-4xl font-bold">{gameData.awayScore}</div>
           </div>
         </div>
 
-        {/* Inning Scores */}
-        {game.inningScores && game.inningScores.length > 0 && (
-          <div className="bg-light-card dark:bg-dark-card rounded-lg p-6 border border-light-border dark:border-dark-border">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">イニング別スコア</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-light-border dark:border-dark-border">
-                    <th className="text-left py-2 text-gray-900 dark:text-white">チーム</th>
-                    {game.inningScores.map((_, index) => (
-                      <th key={index} className="text-center py-2 text-gray-900 dark:text-white">
-                        {index + 1}
-                      </th>
-                    ))}
-                    <th className="text-center py-2 text-gray-900 dark:text-white">計</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-light-border dark:border-dark-border">
-                    <td className="py-2 text-gray-900 dark:text-white">{awayTeam.shortName}</td>
-                    {game.inningScores.map((score, index) => (
-                      <td key={index} className="text-center py-2 text-gray-900 dark:text-white">
-                        {score.away}
-                      </td>
-                    ))}
-                    <td className="text-center py-2 font-bold text-gray-900 dark:text-white">{game.awayScore}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 text-gray-900 dark:text-white">{homeTeam.shortName}</td>
-                    {game.inningScores.map((score, index) => (
-                      <td key={index} className="text-center py-2 text-gray-900 dark:text-white">
-                        {score.home}
-                      </td>
-                    ))}
-                    <td className="text-center py-2 font-bold text-gray-900 dark:text-white">{game.homeScore}</td>
-                  </tr>
-                </tbody>
-              </table>
+        {/* ホームチーム */}
+        <div className="mb-6">
+          <div className="flex items-center mb-2">
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold mr-3">
+              ヤ
             </div>
+            <div className="flex-1">
+              <div className="text-white font-medium">{gameData.homeTeam}</div>
+              <div className="text-xs text-gray-400">スワローズ</div>
+            </div>
+            <div className="text-4xl font-bold">{gameData.awayScore > gameData.homeScore ? gameData.homeScore : gameData.homeScore}</div>
+          </div>
+        </div>
+
+        {/* 球場情報 */}
+        <div className="flex items-center text-xs text-gray-400 mb-6">
+          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>{gameData.stadium}</span>
+          <svg className="w-4 h-4 ml-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <span>{gameData.attendance.toLocaleString()}人</span>
+        </div>
+
+        {/* イニング別スコア */}
+        <div className="bg-[#252935] rounded-lg p-4 mb-6">
+          <h2 className="text-sm font-semibold mb-3">イニング別スコア</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-700">
+                  <th className="pb-2 text-left w-16"></th>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((inning) => (
+                    <th key={inning} className="pb-2 text-center w-8">{inning}</th>
+                  ))}
+                  <th className="pb-2 text-center w-10 bg-blue-900/30">R</th>
+                  <th className="pb-2 text-center w-10 bg-green-900/30">H</th>
+                  <th className="pb-2 text-center w-10 bg-red-900/30">E</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* ビジター */}
+                <tr className="border-b border-gray-700">
+                  <td className="py-3 flex items-center">
+                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2">
+                      ヤ
+                    </div>
+                    <span className="text-xs">ヤクルト</span>
+                  </td>
+                  {gameData.inningScores.away.slice(0, 9).map((score, idx) => (
+                    <td key={idx} className="py-3 text-center">{score}</td>
+                  ))}
+                  {Array.from({ length: 9 - gameData.inningScores.away.length }).map((_, idx) => (
+                    <td key={`empty-away-${idx}`} className="py-3 text-center text-gray-600">0</td>
+                  ))}
+                  <td className="py-3 text-center font-bold bg-blue-900/30">{gameData.runs.away}</td>
+                  <td className="py-3 text-center bg-green-900/30">{gameData.hits.away}</td>
+                  <td className="py-3 text-center bg-red-900/30">{gameData.errors.away}</td>
+                </tr>
+                {/* ホーム */}
+                <tr>
+                  <td className="py-3 flex items-center">
+                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold mr-2">
+                      De
+                    </div>
+                    <span className="text-xs">DeNA</span>
+                  </td>
+                  {gameData.inningScores.home.slice(0, 9).map((score, idx) => (
+                    <td key={idx} className="py-3 text-center">{score === -1 ? 'X' : score}</td>
+                  ))}
+                  {Array.from({ length: 9 - gameData.inningScores.home.length }).map((_, idx) => (
+                    <td key={`empty-home-${idx}`} className="py-3 text-center text-gray-600">0</td>
+                  ))}
+                  <td className="py-3 text-center font-bold bg-blue-900/30">{gameData.runs.home}</td>
+                  <td className="py-3 text-center bg-green-900/30">{gameData.hits.home}</td>
+                  <td className="py-3 text-center bg-red-900/30">{gameData.errors.home}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 投手成績 */}
+        {(gameData.winningPitcher || gameData.losingPitcher || gameData.savePitcher) && (
+          <div className="bg-[#252935] rounded-lg p-4">
+            <h2 className="text-sm font-semibold mb-3">投手成績</h2>
+            
+            {gameData.winningPitcher && (
+              <div className="mb-3 flex items-center">
+                <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center text-xs font-bold mr-3">
+                  勝
+                </div>
+                <div>
+                  <div className="text-sm font-medium">{gameData.winningPitcher.split('(')[0].trim()}</div>
+                  <div className="text-xs text-gray-400">{gameData.winningPitcher.includes('(') ? gameData.winningPitcher.split('(')[1] : ''}</div>
+                </div>
+              </div>
+            )}
+
+            {gameData.savePitcher && (
+              <div className="mb-3 flex items-center">
+                <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-xs font-bold mr-3">
+                  S
+                </div>
+                <div>
+                  <div className="text-sm font-medium">{gameData.savePitcher.split('(')[0].trim()}</div>
+                  <div className="text-xs text-gray-400">{gameData.savePitcher.includes('(') ? gameData.savePitcher.split('(')[1] : ''}</div>
+                </div>
+              </div>
+            )}
+
+            {gameData.losingPitcher && (
+              <div className="flex items-center">
+                <div className="w-8 h-8 bg-red-600 rounded flex items-center justify-center text-xs font-bold mr-3">
+                  敗
+                </div>
+                <div>
+                  <div className="text-sm font-medium">{gameData.losingPitcher.split('(')[0].trim()}</div>
+                  <div className="text-xs text-gray-400">{gameData.losingPitcher.includes('(') ? gameData.losingPitcher.split('(')[1] : ''}</div>
+                </div>
+              </div>
+            )}
           </div>
         )}
-
-        {/* Note */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-          <p className="text-sm text-blue-800 dark:text-blue-300">
-            ℹ️ 個人選手のスコアは表示していません。チーム単位のデータのみを表示しています。
-          </p>
-        </div>
       </div>
     </div>
   );

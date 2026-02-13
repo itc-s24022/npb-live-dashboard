@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Moon, Sun, Trash2, RefreshCw, Database, Info } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { TEAMS } from '@/lib/teams';
+import { TeamId } from '@/types';
 
 export default function SettingsPage() {
   const { settings, setTheme, setAutoUpdate, toggleTeamSelector } = useAppStore();
@@ -102,6 +103,11 @@ export default function SettingsPage() {
     }
   };
 
+  // 安全にチームを取得
+  const favoriteTeam = settings.favoriteTeam && TEAMS[settings.favoriteTeam as TeamId] 
+    ? TEAMS[settings.favoriteTeam as TeamId] 
+    : null;
+
   return (
     <div className="max-w-2xl mx-auto p-4 pb-20 space-y-4">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">設定</h1>
@@ -148,15 +154,15 @@ export default function SettingsPage() {
             onClick={toggleTeamSelector}
             className="flex items-center gap-2 px-4 py-2 bg-light-bg dark:bg-dark-bg rounded-lg border border-light-border dark:border-dark-border hover:border-primary-green transition-colors"
           >
-            {settings.favoriteTeam ? (
+            {favoriteTeam ? (
               <>
                 <div
                   className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                  style={{ backgroundColor: TEAMS[settings.favoriteTeam].color }}
+                  style={{ backgroundColor: favoriteTeam.color }}
                 >
-                  {TEAMS[settings.favoriteTeam].shortName}
+                  {favoriteTeam.shortName}
                 </div>
-                <span className="text-gray-900 dark:text-white">{TEAMS[settings.favoriteTeam].name}</span>
+                <span className="text-gray-900 dark:text-white">{favoriteTeam.name}</span>
               </>
             ) : (
               <span className="text-gray-600 dark:text-gray-400">未設定</span>

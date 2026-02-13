@@ -3,57 +3,57 @@
 import { X } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 
-const YEARS = [2020, 2021, 2022, 2023, 2024, 2025];
-
 export default function YearSelectorModal() {
-  const { uiState, closeAllModals, filter, setSelectedYear } = useAppStore();
+  const { showYearSelector, toggleYearSelector, filter, setSelectedYear } = useAppStore();
 
-  if (!uiState.isYearSelectorOpen) return null;
+  if (!showYearSelector) return null;
 
   const handleYearSelect = (year: number) => {
     setSelectedYear(year);
-    closeAllModals();
+    toggleYearSelector();
   };
 
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 10 }, (_, i) => currentYear - i);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
-      <div className="bg-light-card dark:bg-dark-card w-full sm:max-w-md sm:rounded-lg rounded-t-2xl">
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={toggleYearSelector}
+    >
+      <div
+        className="bg-light-card dark:bg-dark-card rounded-lg w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="border-b border-light-border dark:border-dark-border p-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">年度を選択</h2>
+        <div className="flex items-center justify-between p-4 border-b border-light-border dark:border-dark-border">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">年を選択</h2>
           <button
-            onClick={closeAllModals}
+            onClick={toggleYearSelector}
             className="p-2 hover:bg-light-bg dark:hover:bg-dark-bg rounded-lg transition-colors"
           >
-            <X className="w-6 h-6 text-gray-900 dark:text-white" />
+            <X className="w-5 h-5 text-gray-900 dark:text-white" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4">
-          <div className="grid grid-cols-3 gap-3">
-            {YEARS.map((year) => (
+        {/* Years List */}
+        <div className="p-4 grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+          {years.map((year) => {
+            const isSelected = year === filter.selectedYear;
+            return (
               <button
                 key={year}
                 onClick={() => handleYearSelect(year)}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  filter.selectedYear === year
-                    ? 'border-primary-green bg-primary-green/10'
-                    : 'border-light-border dark:border-dark-border hover:border-primary-green'
+                className={`py-3 rounded-lg font-bold transition-colors ${
+                  isSelected
+                    ? 'bg-primary-green text-white'
+                    : 'bg-light-bg dark:bg-dark-bg text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
-                <span
-                  className={`text-lg font-bold ${
-                    filter.selectedYear === year
-                      ? 'text-primary-green'
-                      : 'text-gray-900 dark:text-white'
-                  }`}
-                >
-                  {year}
-                </span>
+                {year}年
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
     </div>
