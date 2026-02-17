@@ -7,6 +7,9 @@ const SCRAPING_DELAY = 1000; // 1秒
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// サーバーサイドのメモリキャッシュ
+const memoryCache = new Map<string, { data: unknown; timestamp: number }>();
+
 const TEAM_NAME_MAP: Record<string, string> = {
   '巨': 'giants',
   '巨人': 'giants',
@@ -66,7 +69,6 @@ function getTeamId(teamName: string): string {
 async function scrapeMonthlyStandings(year: string, month: string): Promise<StandingsData> {
   console.log(`[SCRAPING] NPB月別順位表をスクレイピング: ${year}年${month}月`);
 
-  // カレンダーページから月間成績を集計
   const url = `https://npb.jp/bis/${year}/calendar/index_${month.padStart(2, '0')}.html`;
 
   try {
@@ -79,18 +81,15 @@ async function scrapeMonthlyStandings(year: string, month: string): Promise<Stan
 
     const $ = cheerio.load(response.data);
     
-    // チーム別の戦績を集計
     const teamStats: Record<string, { wins: number; losses: number; draws: number }> = {};
 
-    // カレンダーから試合結果を抽出
-    $('table td[nowrap="nowrap"]').each((index, element) => {
+    $('table td[nowrap="nowrap"]').each((_index, element) => {
       const $td = $(element);
       
-      $td.find('a').each((i, link) => {
+      $td.find('a').each((_i, link) => {
         const $link = $(link);
         const text = $link.text().trim();
         
-        // スコア形式（例: "巨 5 - 2 中"）
         const scoreMatch = text.match(/^(.+?)\s+(\d+)\s*-\s*(\d+)\s+(.+?)$/);
         if (scoreMatch) {
           const awayTeamName = scoreMatch[1].trim();
@@ -103,7 +102,6 @@ async function scrapeMonthlyStandings(year: string, month: string): Promise<Stan
           
           if (awayTeamId === 'unknown' || homeTeamId === 'unknown') return;
           
-          // 初期化
           if (!teamStats[awayTeamId]) {
             teamStats[awayTeamId] = { wins: 0, losses: 0, draws: 0 };
           }
@@ -111,7 +109,6 @@ async function scrapeMonthlyStandings(year: string, month: string): Promise<Stan
             teamStats[homeTeamId] = { wins: 0, losses: 0, draws: 0 };
           }
           
-          // 勝敗を記録
           if (awayScore > homeScore) {
             teamStats[awayTeamId].wins++;
             teamStats[homeTeamId].losses++;
@@ -126,16 +123,15 @@ async function scrapeMonthlyStandings(year: string, month: string): Promise<Stan
       });
     });
 
-    // セ・リーグとパ・リーグに分類
     const centralTeams = ['giants', 'hanshin', 'dragons', 'baystars', 'carp', 'swallows'];
     const pacificTeams = ['hawks', 'lions', 'eagles', 'marines', 'fighters', 'buffaloes'];
 
     const createStandings = (teams: string[]): Standing[] => {
-      return teams
+      const standings = teams
         .map(teamId => {
           const stats = teamStats[teamId] || { wins: 0, losses: 0, draws: 0 };
           const games = stats.wins + stats.losses + stats.draws;
-          const winRate = games > 0 ? stats.wins / (stats.wins + stats.losses) : 0;
+          const winRate = (stats.wins + stats.losses) > 0 ? stats.wins / (stats.wins + stats.losses) : 0;
           
           return {
             rank: 0,
@@ -148,19 +144,17 @@ async function scrapeMonthlyStandings(year: string, month: string): Promise<Stan
             gamesBehind: 0,
           };
         })
-        .filter(standing => standing.games > 0) // 試合がないチームは除外
-        .sort((a, b) => b.winRate - a.winRate)
-        .map((standing, index) => {
-          const rank = index + 1;
-          const firstPlaceWinRate = index === 0 ? standing.winRate : 0;
-          const gamesBehind = index === 0 ? 0 : (firstPlaceWinRate - standing.winRate) * (standing.wins + standing.losses);
-          
-          return {
-            ...standing,
-            rank,
-            gamesBehind,
-          };
-        });
+        .filter(standing => standing.games > 0)
+        .sort((a, b) => b.winRate - a.winRate);
+
+      // 順位とゲーム差を計算
+      const firstWinRate = standings.length > 0 ? standings[0].winRate : 0;
+      return standings.map((standing, index) => ({
+        ...standing,
+        rank: index + 1,
+        gamesBehind: index === 0 ? 0 : 
+          ((firstWinRate - standing.winRate) * (standing.wins + standing.losses)) / 2,
+      }));
     };
 
     const central = createStandings(centralTeams);
@@ -183,18 +177,56 @@ export async function GET(request: NextRequest) {
   const year = searchParams.get('year') || '2025';
   const month = searchParams.get('month') || '4';
 
+  const cacheKey = `standings-${year}-${month}`;
+
   console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`[REQUEST] ${year}年${month}月の順位表リクエスト`);
   console.log(`[TIME] ${new Date().toISOString()}`);
 
+  // メモリキャッシュの確認
+  const cached = memoryCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION * 1000) {
+    const responseTime = Date.now() - startTime;
+    const cacheAge = Math.floor((Date.now() - cached.timestamp) / 1000);
+    const cacheRemaining = CACHE_DURATION - cacheAge;
+
+    console.log(`[CACHE HIT] メモリキャッシュから返却（残り${cacheRemaining}秒）`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+
+    return NextResponse.json(
+      {
+        year,
+        month,
+        ...(cached.data as object),
+        cacheStatus: 'HIT',
+        cacheAge,
+        cacheRemaining,
+        timestamp: new Date().toISOString(),
+        responseTime,
+      },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': `public, max-age=${cacheRemaining}, s-maxage=${cacheRemaining}, stale-while-revalidate=${CACHE_DURATION}`,
+          'X-Cache-Status': 'HIT',
+          'X-Response-Time': `${responseTime}ms`,
+        },
+      }
+    );
+  }
+
   try {
-    // 1秒の遅延
     await delay(SCRAPING_DELAY);
 
     const data = await scrapeMonthlyStandings(year, month);
+
+    // メモリキャッシュに保存
+    memoryCache.set(cacheKey, { data, timestamp: Date.now() });
+
     const responseTime = Date.now() - startTime;
 
     console.log(`[SUCCESS] 順位表データ取得完了`);
+    console.log(`[CACHE STORE] メモリキャッシュに保存（${CACHE_DURATION}秒）`);
     console.log(`[PERFORMANCE] 総レスポンス時間: ${responseTime}ms`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
@@ -203,15 +235,18 @@ export async function GET(request: NextRequest) {
         year,
         month,
         ...data,
+        cacheStatus: 'MISS',
+        cacheRemaining: CACHE_DURATION,
         timestamp: new Date().toISOString(),
         responseTime,
       },
       {
         status: 200,
         headers: {
-          'Cache-Control': `public, s-maxage=${CACHE_DURATION}, stale-while-revalidate=${CACHE_DURATION * 2}`,
+          'Cache-Control': `public, max-age=${CACHE_DURATION}, s-maxage=${CACHE_DURATION}, stale-while-revalidate=${CACHE_DURATION * 2}`,
           'CDN-Cache-Control': `public, max-age=${CACHE_DURATION}`,
           'Vercel-CDN-Cache-Control': `max-age=${CACHE_DURATION}`,
+          'X-Cache-Status': 'MISS',
           'X-Response-Time': `${responseTime}ms`,
         },
       }

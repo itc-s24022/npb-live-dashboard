@@ -7,6 +7,9 @@ const SCRAPING_DELAY = 1000; // 1秒
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// サーバーサイドのメモリキャッシュ
+const memoryCache = new Map<string, { data: unknown; timestamp: number }>();
+
 // チーム名マッピング（略称 → TeamId）
 const TEAM_NAME_MAP: Record<string, string> = {
   '巨': 'giants',
@@ -71,7 +74,7 @@ async function scrapeNPBData(year: string, month: string): Promise<ScrapedData> 
     const games: GameData[] = [];
 
     // カレンダーテーブルからデータ抽出
-    $('table td[nowrap="nowrap"]').each((index, element) => {
+    $('table td[nowrap="nowrap"]').each((_index, element) => {
       const $td = $(element);
       const dateLink = $td.find('a').first();
 
@@ -80,7 +83,7 @@ async function scrapeNPBData(year: string, month: string): Promise<ScrapedData> 
         const matches: MatchData[] = [];
 
         // 試合情報を抽出（詳細URLも含む）
-        $td.find('a').each((i, link) => {
+        $td.find('a').each((_i, link) => {
           const $link = $(link);
           const text = $link.text().trim();
           const href = $link.attr('href');
@@ -135,11 +138,46 @@ export async function GET(request: NextRequest) {
   const year = searchParams.get('year') || '2025';
   const month = searchParams.get('month') || '10';
 
+  const cacheKey = `games-${year}-${month}`;
+
   console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`[REQUEST] ${year}年${month}月のデータリクエスト`);
   console.log(`[CLIENT] IP: ${request.headers.get('x-forwarded-for') || 'unknown'}`);
   console.log(`[TIME] ${new Date().toISOString()}`);
   console.log(`[VERCEL CACHE] ${request.headers.get('x-vercel-cache') || 'NONE'}`);
+
+  // メモリキャッシュの確認
+  const cached = memoryCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION * 1000) {
+    const responseTime = Date.now() - startTime;
+    const cacheAge = Math.floor((Date.now() - cached.timestamp) / 1000);
+    const cacheRemaining = CACHE_DURATION - cacheAge;
+
+    console.log(`[CACHE HIT] メモリキャッシュから返却（残り${cacheRemaining}秒）`);
+    console.log(`[PERFORMANCE] 総レスポンス時間: ${responseTime}ms`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+
+    const headers = new Headers();
+    headers.set('Cache-Control', `public, max-age=${cacheRemaining}, s-maxage=${cacheRemaining}, stale-while-revalidate=${CACHE_DURATION}`);
+    headers.set('CDN-Cache-Control', `public, max-age=${cacheRemaining}`);
+    headers.set('Vercel-CDN-Cache-Control', `max-age=${cacheRemaining}`);
+    headers.set('X-Cache-Status', 'HIT');
+    headers.set('X-Cache-Age', cacheAge.toString());
+    headers.set('X-Cache-Remaining', cacheRemaining.toString());
+    headers.set('X-Response-Time', responseTime.toString());
+
+    return NextResponse.json(
+      {
+        ...(cached.data as object),
+        cacheStatus: 'HIT',
+        cacheAge,
+        cacheRemaining,
+        responseTime,
+        timestamp: new Date().toISOString(),
+      },
+      { headers }
+    );
+  }
 
   console.log(`[DELAY START] ${SCRAPING_DELAY / 1000}秒の遅延を開始`);
 
@@ -152,15 +190,19 @@ export async function GET(request: NextRequest) {
     // スクレイピング実行
     const data = await scrapeNPBData(year, month);
 
+    // メモリキャッシュに保存
+    memoryCache.set(cacheKey, { data, timestamp: Date.now() });
+
     const responseTime = Date.now() - startTime;
 
     console.log(`[SUCCESS] データ取得完了`);
+    console.log(`[CACHE STORE] メモリキャッシュに保存（${CACHE_DURATION}秒）`);
     console.log(`[PERFORMANCE] 総レスポンス時間: ${responseTime}ms`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
     // Vercel Edge Cacheヘッダー（24時間キャッシュ）
     const headers = new Headers();
-    headers.set('Cache-Control', `public, s-maxage=${CACHE_DURATION}, stale-while-revalidate=${CACHE_DURATION * 2}`);
+    headers.set('Cache-Control', `public, max-age=${CACHE_DURATION}, s-maxage=${CACHE_DURATION}, stale-while-revalidate=${CACHE_DURATION * 2}`);
     headers.set('CDN-Cache-Control', `public, max-age=${CACHE_DURATION}`);
     headers.set('Vercel-CDN-Cache-Control', `max-age=${CACHE_DURATION}`);
     headers.set('X-Cache-Status', 'MISS');

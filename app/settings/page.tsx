@@ -14,7 +14,6 @@ export default function SettingsPage() {
   const [testResult, setTestResult] = useState<string | null>(null);
 
   useEffect(() => {
-    // キャッシュサイズを計算
     const calculateCacheSize = () => {
       try {
         let totalSize = 0;
@@ -36,7 +35,6 @@ export default function SettingsPage() {
       }
     };
 
-    // 最終更新時刻を計算
     const calculateLastUpdate = () => {
       try {
         const storedData = localStorage.getItem('npb-live-storage');
@@ -79,6 +77,18 @@ export default function SettingsPage() {
     alert('データを更新しました');
   };
 
+  const formatDuration = (seconds: number): string => {
+    if (seconds >= 3600) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      return m > 0 ? `${h}時間${m}分` : `${h}時間`;
+    }
+    if (seconds >= 60) {
+      return `${Math.floor(seconds / 60)}分`;
+    }
+    return `${seconds}秒`;
+  };
+
   const handleTestScraping = async () => {
     setTestLoading(true);
     setTestResult(null);
@@ -93,17 +103,24 @@ export default function SettingsPage() {
       }
 
       const data = await response.json();
-      setTestResult(
-        `成功: ${responseTime}ms\nデータ: ${data.games?.length || 0}日分\nキャッシュ: ${data.cacheStatus || 'MISS'}`
-      );
+      const cacheStatus = data.cacheStatus || 'MISS';
+      const cacheRemaining = data.cacheRemaining || 0;
+
+      let resultText = '';
+      if (cacheStatus === 'HIT') {
+        resultText = `✅ キャッシュHIT（${responseTime}ms）\nキャッシュ残り: ${formatDuration(cacheRemaining)}`;
+      } else {
+        resultText = `✅ スクレイピング成功（${responseTime}ms）\nキャッシュ有効期間: 24時間`;
+      }
+
+      setTestResult(resultText);
     } catch (error) {
-      setTestResult(`エラー: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      setTestResult(`❌ エラー: ${error instanceof Error ? error.message : '不明なエラー'}`);
     } finally {
       setTestLoading(false);
     }
   };
 
-  // 安全にチームを取得
   const favoriteTeam = settings.favoriteTeam && TEAMS[settings.favoriteTeam as TeamId] 
     ? TEAMS[settings.favoriteTeam as TeamId] 
     : null;
@@ -228,7 +245,10 @@ export default function SettingsPage() {
 
       {/* Scraping Test */}
       <div className="bg-light-card dark:bg-dark-card rounded-lg p-4 border border-light-border dark:border-dark-border">
-        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">スクレイピングテスト</h2>
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">スクレイピングテスト</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          サーバーキャッシュ: 24時間有効
+        </p>
         
         <button
           onClick={handleTestScraping}
