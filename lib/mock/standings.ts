@@ -3,7 +3,7 @@ import { Standing } from '@/types';
 export const MOCK_STANDINGS_CENTRAL_2025: Standing[] = [
   {
     rank: 1,
-    team: 'tigers',
+    team: 'hanshin',
     games: 113,
     wins: 65,
     losses: 48,

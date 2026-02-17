@@ -1,6 +1,5 @@
 'use client';
 
-import { RefreshButton } from './RefreshButton';
 import { NotificationButton } from './NotificationButton';
 
 export default function Header() {

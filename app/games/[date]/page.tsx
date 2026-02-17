@@ -3,102 +3,183 @@ import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import { TEAMS } from '@/lib/teams';
 import { Game, TeamId } from '@/types';
+import * as cheerio from 'cheerio';
 
 interface PageProps {
   params: Promise<{ date: string }>;
 }
 
-interface MatchData {
-  away: string;
-  awayTeamId: string;
-  awayScore: number;
-  homeScore: number;
-  home: string;
-  homeTeamId: string;
-  url: string;
-  detailUrl?: string;
-}
+// チーム名マッピング（NPB公式の表記 → TeamId）
+const TEAM_NAME_MAP: Record<string, string> = {
+  '読　売': 'giants',
+  '読売': 'giants',
+  '阪　神': 'hanshin',
+  '阪神': 'hanshin',
+  '中　日': 'dragons',
+  '中日': 'dragons',
+  '広島東洋': 'carp',
+  '広島': 'carp',
+  '横浜DeNA': 'baystars',
+  'ＤｅＮＡ': 'baystars',
+  'DeNA': 'baystars',
+  '東京ヤクルト': 'swallows',
+  'ヤクルト': 'swallows',
+  '福岡ソフトバンク': 'hawks',
+  'ソフトバンク': 'hawks',
+  '埼玉西武': 'lions',
+  '西武': 'lions',
+  '東北楽天': 'eagles',
+  '楽天': 'eagles',
+  '千葉ロッテ': 'marines',
+  'ロッテ': 'marines',
+  '北海道日本ハム': 'fighters',
+  '日本ハム': 'fighters',
+  'オリックス': 'buffaloes',
+};
 
-interface GameData {
-  date: string;
-  matches: MatchData[];
+function getTeamId(teamName: string): string {
+  const trimmed = teamName.trim();
+  if (TEAM_NAME_MAP[trimmed]) return TEAM_NAME_MAP[trimmed];
+  for (const [key, value] of Object.entries(TEAM_NAME_MAP)) {
+    if (trimmed.includes(key) || key.includes(trimmed)) {
+      return value;
+    }
+  }
+  return 'unknown';
 }
 
 async function fetchGamesForDate(date: string): Promise<Game[]> {
   try {
-    // 日付から年月を抽出
-    const [year, month] = date.split('-');
-    
-    // カレンダーAPIからデータを取得
-    const response = await fetch(
-      `http://localhost:3000/api/games?year=${year}&month=${parseInt(month)}`,
-      { next: { revalidate: 86400 } } // 24時間キャッシュ
-    );
+    const [year, month, day] = date.split('-');
+    const dateStr = `${year}${month}${day}`;
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch games data');
-    }
+    const url = `https://npb.jp/bis/${year}/games/gm${dateStr}.html`;
+    console.log(`[GAMES PAGE] Fetching: ${url}`);
 
-    const data = await response.json();
-    
-    // 指定された日付の試合を探す
-    const targetDate = new Date(date);
-    const targetDay = targetDate.getDate();
-    const targetMonth = targetDate.getMonth() + 1;
-
-    const dayGames = data.games.find((g: GameData) => {
-      const match = g.date.match(/(\d+)月(\d+)日/);
-      if (match) {
-        const gameMonth = parseInt(match[1]);
-        const gameDay = parseInt(match[2]);
-        return gameMonth === targetMonth && gameDay === targetDay;
-      }
-      return false;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      next: { revalidate: 86400 },
     });
 
-    if (!dayGames || !dayGames.matches) {
+    if (!response.ok) {
+      console.log(`[GAMES PAGE] HTTP ${response.status} for ${url}`);
       return [];
     }
 
-    // Game型に変換
-    const games: Game[] = dayGames.matches.map((match: MatchData, index: number) => ({
-      id: match.url.split('/').pop()?.replace('.html', '') || `${date}-${index}`,
-      date: date,
-      time: '18:00',
-      homeTeam: match.homeTeamId as TeamId,
-      awayTeam: match.awayTeamId as TeamId,
-      homeScore: match.homeScore,
-      awayScore: match.awayScore,
-      status: 'finished' as const,
-      stadium: '未設定',
-      detailUrl: match.detailUrl,
-    }));
+    const html = await response.text();
+    const $ = cheerio.load(html);
 
+    const games: Game[] = [];
+
+    // NPBサマリーページの構造:
+    // table > table（リーグごと）> tr（試合ごとに2行ペア）
+    // 1行目: [img, awayTeam, awayScore, -, homeScore, homeTeam, img]
+    // 2行目: [statusLink(colspan=2), stadium(colspan=3)]
+    $('table table').each((_tableIdx, table) => {
+      const rows = $(table).find('tr');
+
+      for (let i = 0; i < rows.length; i += 2) {
+        const scoreRow = $(rows[i]);
+        const infoRow = $(rows[i + 1]);
+
+        if (!infoRow || infoRow.length === 0) continue;
+
+        const scoreCells = scoreRow.find('td');
+        const infoCells = infoRow.find('td');
+
+        if (scoreCells.length < 5) continue;
+
+        // スコア行からチーム名・スコアを取得
+        const awayTeamName = $(scoreCells[1]).text().trim();
+        const awayScoreText = $(scoreCells[2]).text().trim();
+        const homeScoreText = $(scoreCells[4]).text().trim();
+        const homeTeamName = $(scoreCells[5]).text().trim();
+
+        const awayScore = awayScoreText ? parseInt(awayScoreText) : 0;
+        const homeScore = homeScoreText ? parseInt(homeScoreText) : 0;
+
+        // 情報行からステータスとスタジアムを取得
+        let statusText = '';
+        let stadium = '';
+        let gameId = '';
+
+        const infoLink = infoCells.find('a').first();
+        if (infoLink.length > 0) {
+          statusText = infoLink.text().trim();
+          const href = infoLink.attr('href') || '';
+          const idMatch = href.match(/(s\d+)\.html/);
+          if (idMatch) {
+            gameId = idMatch[1];
+          }
+        }
+
+        // 球場名: 最後のtdから取得
+        if (infoCells.length >= 2) {
+          stadium = $(infoCells[infoCells.length - 1]).text().trim();
+        }
+
+        // ステータス判定
+        let gameStatus: 'scheduled' | 'live' | 'finished' | 'postponed' = 'finished';
+        if (statusText === '中止') {
+          gameStatus = 'postponed';
+        } else if (isNaN(awayScore) && isNaN(homeScore)) {
+          gameStatus = 'scheduled';
+        }
+
+        const awayTeamId = getTeamId(awayTeamName);
+        const homeTeamId = getTeamId(homeTeamName);
+
+        if (awayTeamName && homeTeamName && awayTeamId !== 'unknown' && homeTeamId !== 'unknown') {
+          games.push({
+            id: gameId || `${date}-${games.length}`,
+            date,
+            time: '18:00',
+            homeTeam: homeTeamId as TeamId,
+            awayTeam: awayTeamId as TeamId,
+            homeScore: isNaN(homeScore) ? 0 : homeScore,
+            awayScore: isNaN(awayScore) ? 0 : awayScore,
+            status: gameStatus,
+            stadium: stadium || '未設定',
+          });
+        }
+      }
+    });
+
+    console.log(`[GAMES PAGE] Found ${games.length} games for ${date}`);
     return games;
   } catch (error) {
-    console.error('Error fetching games for date:', error);
+    console.error('[GAMES PAGE] Error:', error);
     return [];
   }
 }
 
 export default async function GamesListPage({ params }: PageProps) {
   const { date } = await params;
-  
+
   const games = await fetchGamesForDate(date);
 
   if (games.length === 0) {
     notFound();
   }
 
-  // リーグ別にグループ化
+  // リーグ別にグループ化（TEAMSに存在しないチームも安全に処理）
   const centralGames = games.filter(
-    (game) => TEAMS[game.homeTeam].league === 'central' && TEAMS[game.awayTeam].league === 'central'
+    (game) =>
+      TEAMS[game.homeTeam]?.league === 'central' &&
+      TEAMS[game.awayTeam]?.league === 'central'
   );
   const pacificGames = games.filter(
-    (game) => TEAMS[game.homeTeam].league === 'pacific' && TEAMS[game.awayTeam].league === 'pacific'
+    (game) =>
+      TEAMS[game.homeTeam]?.league === 'pacific' &&
+      TEAMS[game.awayTeam]?.league === 'pacific'
   );
   const interleagueGames = games.filter(
-    (game) => TEAMS[game.homeTeam].league !== TEAMS[game.awayTeam].league
+    (game) =>
+      TEAMS[game.homeTeam] &&
+      TEAMS[game.awayTeam] &&
+      TEAMS[game.homeTeam].league !== TEAMS[game.awayTeam].league
   );
 
   // 日付をフォーマット
@@ -106,15 +187,39 @@ export default async function GamesListPage({ params }: PageProps) {
   const weekDays = ['日', '月', '火', '水', '木', '金', '土'];
   const formattedDate = `${dateObj.getMonth() + 1}月${dateObj.getDate()}日（${weekDays[dateObj.getDay()]}）`;
 
+  const getStatusBadge = (game: Game) => {
+    switch (game.status) {
+      case 'postponed':
+        return (
+          <span className="px-2 py-1 bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300 rounded text-xs">
+            中止
+          </span>
+        );
+      case 'scheduled':
+        return (
+          <span className="px-2 py-1 bg-blue-200 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs">
+            予定
+          </span>
+        );
+      default:
+        return (
+          <span className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">
+            試合終了
+          </span>
+        );
+    }
+  };
+
   const GameCard = ({ game }: { game: Game }) => {
     const homeTeam = TEAMS[game.homeTeam];
     const awayTeam = TEAMS[game.awayTeam];
 
-    return (
-      <Link
-        href={`/games/detail/${game.id}`}
-        className="block bg-light-card dark:bg-dark-card rounded-lg p-4 border border-light-border dark:border-dark-border hover:border-primary-green transition-colors"
-      >
+    if (!homeTeam || !awayTeam) return null;
+
+    const isPostponed = game.status === 'postponed';
+
+    const cardContent = (
+      <div className="bg-light-card dark:bg-dark-card rounded-lg p-4 border border-light-border dark:border-dark-border hover:border-primary-green transition-colors">
         <div className="flex items-center justify-between">
           {/* Away Team */}
           <div className="flex items-center gap-3 flex-1">
@@ -132,9 +237,15 @@ export default async function GamesListPage({ params }: PageProps) {
 
           {/* Score */}
           <div className="flex items-center gap-4 mx-4">
-            <div className="text-3xl font-bold text-gray-900 dark:text-white">{game.awayScore}</div>
-            <div className="text-2xl text-gray-400">-</div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-white">{game.homeScore}</div>
+            {isPostponed ? (
+              <div className="text-xl font-bold text-red-500">中止</div>
+            ) : (
+              <>
+                <div className="text-3xl font-bold text-gray-900 dark:text-white">{game.awayScore}</div>
+                <div className="text-2xl text-gray-400">-</div>
+                <div className="text-3xl font-bold text-gray-900 dark:text-white">{game.homeScore}</div>
+              </>
+            )}
           </div>
 
           {/* Home Team */}
@@ -156,12 +267,19 @@ export default async function GamesListPage({ params }: PageProps) {
         <div className="mt-3 pt-3 border-t border-light-border dark:border-dark-border flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
           <span>{game.stadium}</span>
           <div className="flex items-center gap-3">
-            <span>{game.time}開始</span>
-            <span className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">
-              試合終了
-            </span>
+            {getStatusBadge(game)}
           </div>
         </div>
+      </div>
+    );
+
+    if (isPostponed) {
+      return <div className="block">{cardContent}</div>;
+    }
+
+    return (
+      <Link href={`/games/detail/${game.id}`} className="block">
+        {cardContent}
       </Link>
     );
   };
@@ -179,7 +297,7 @@ export default async function GamesListPage({ params }: PageProps) {
             <span>戻る</span>
           </Link>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">{formattedDate}の試合</h1>
-          <div className="w-16" /> {/* Spacer for centering */}
+          <div className="w-16" />
         </div>
       </div>
 

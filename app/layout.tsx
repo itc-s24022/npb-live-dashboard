@@ -23,8 +23,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" suppressHydrationWarning>
-      <body>
+    <html lang="ja" className="light" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('npb-live-storage');if(s){var p=JSON.parse(s);if(p&&p.state&&p.state.settings&&p.state.settings.theme==='dark'){document.documentElement.className='dark'}}}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body
+        style={{ backgroundColor: '#f5f5f5', color: '#1a1d29' }}
+        suppressHydrationWarning
+      >
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('npb-live-storage');if(s){var p=JSON.parse(s);if(p&&p.state&&p.state.settings&&p.state.settings.theme==='dark'){document.body.style.backgroundColor='#1a1d29';document.body.style.color='white'}}}catch(e){}})();`,
+          }}
+        />
         <ThemeProvider>
           <Header />
           <main className="pt-14 pb-16 min-h-screen max-w-screen-lg mx-auto bg-light-bg dark:bg-dark-bg">

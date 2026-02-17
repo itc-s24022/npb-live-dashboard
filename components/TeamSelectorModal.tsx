@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { X } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
-import { TEAMS, getCentralLeagueTeams, getPacificLeagueTeams } from '@/lib/teams';
+import { getCentralLeagueTeams, getPacificLeagueTeams } from '@/lib/teams';
 import { TeamId } from '@/types';
 
 export default function TeamSelectorModal() {

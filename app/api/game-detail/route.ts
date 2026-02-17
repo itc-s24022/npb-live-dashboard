@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
+import type { Element } from 'domhandler';
 
 const SCRAPING_DELAY = 1000;
 const CACHE_DURATION = 86400;
@@ -7,7 +8,7 @@ const CACHE_DURATION = 86400;
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function GET(request: NextRequest) {
-  const startTime = Date.now();
+  const requestStartTime = Date.now();
   
   try {
     const { searchParams } = new URL(request.url);
@@ -19,7 +20,11 @@ export async function GET(request: NextRequest) {
 
     await delay(SCRAPING_DELAY);
 
-    const url = `https://npb.jp/bis/2025/games/${gameId}.html`;
+    // gameIdから年を抽出 (例: s2025040100115 → 2025)
+    const yearMatch = gameId.match(/s(\d{4})/);
+    const gameYear = yearMatch ? yearMatch[1] : '2025';
+
+    const url = `https://npb.jp/bis/${gameYear}/games/${gameId}.html`;
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -46,21 +51,21 @@ export async function GET(request: NextRequest) {
     // 試合時間、開始・終了時刻を抽出
     const timeMatch = infoText.match(/試合時間\s*-\s*([\d：]+)\s*\(\s*開始([\d:]+)\s*終了([\d:]+)\s*\)/);
     const duration = timeMatch ? timeMatch[1].replace('：', ':') : '';
-    const startTime = timeMatch ? timeMatch[2] : '';
+    const gameStartTime = timeMatch ? timeMatch[2] : '';
     const endTime = timeMatch ? timeMatch[3] : '';
     
     // 入場者数を抽出
     const attendanceMatch = infoText.match(/入場者\s*-\s*([\d,]+)/);
     const attendance = attendanceMatch ? parseInt(attendanceMatch[1].replace(/,/g, '')) : 0;
 
-    console.log(`[API] Stadium: ${stadium}, Duration: ${duration}, Time: ${startTime}-${endTime}, Attendance: ${attendance}`);
+    console.log(`[API] Stadium: ${stadium}, Duration: ${duration}, Time: ${gameStartTime}-${endTime}, Attendance: ${attendance}`);
 
     // テーブル5: スコアテーブル
     const scoreTable = tables.eq(5);
     const scoreRows = scoreTable.find('tr');
     
-    // 行1: ビジターチーム（東京ヤクルト）
-    // 行2: ホームチーム（横浜DeNA）
+    // 行1: ビジターチーム
+    // 行2: ホームチーム
     const awayRow = scoreRows.eq(1);
     const homeRow = scoreRows.eq(2);
     
@@ -71,7 +76,7 @@ export async function GET(request: NextRequest) {
     console.log(`[API] Away: ${awayTeam}, Home: ${homeTeam}`);
 
     // スコア解析関数
-    const parseScoreRow = (row: cheerio.Cheerio<cheerio.Element>) => {
+    const parseScoreRow = (row: cheerio.Cheerio<Element>) => {
       const cells = row.find('td');
       const innings: number[] = [];
       let r = 0, h = 0, e = 0;
@@ -115,12 +120,24 @@ export async function GET(request: NextRequest) {
     console.log(`[API] Away: R=${awayData.r}, H=${awayData.h}, E=${awayData.e}, Innings=[${awayData.innings.join(',')}]`);
     console.log(`[API] Home: R=${homeData.r}, H=${homeData.h}, E=${homeData.e}, Innings=[${homeData.innings.join(',')}]`);
 
+    // gameIdから日付を抽出 (例: s2025040100115 → 2025年04月01日)
+    const dateMatch = gameId.match(/s(\d{4})(\d{2})(\d{2})/);
+    const gameDate = dateMatch
+      ? `${dateMatch[1]}年${dateMatch[2]}月${dateMatch[3]}日`
+      : '';
+
+    // ステータス判定
+    let status = '試合終了';
+    if (duration === '' && gameStartTime === '') {
+      status = '未設定';
+    }
+
     const gameData = {
       gameId,
-      date: '2025年06月01日',
+      date: gameDate,
       stadium,
       attendance,
-      time: startTime,
+      time: gameStartTime,
       endTime,
       duration,
       inningScores: {
@@ -143,8 +160,11 @@ export async function GET(request: NextRequest) {
         away: awayData.e,
         home: homeData.e,
       },
-      status: '試合終了',
+      status,
     };
+
+    const responseTime = Date.now() - requestStartTime;
+    console.log(`[API] Response time: ${responseTime}ms`);
 
     return NextResponse.json(gameData, {
       headers: { 'Cache-Control': `public, s-maxage=${CACHE_DURATION}` },

@@ -1,22 +1,27 @@
 'use client';
 
 import { useAppStore } from '@/store/useAppStore';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { settings } = useAppStore();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // 初回マウント時にテーマを適用
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     const root = document.documentElement;
     if (settings.theme === 'dark') {
-      root.classList.add('dark');
       root.classList.remove('light');
+      root.classList.add('dark');
     } else {
-      root.classList.add('light');
       root.classList.remove('dark');
+      root.classList.add('light');
     }
-  }, [settings.theme]);
+  }, [settings.theme, mounted]);
 
   return <>{children}</>;
 }
