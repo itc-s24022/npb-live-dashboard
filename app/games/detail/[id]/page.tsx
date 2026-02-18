@@ -66,7 +66,7 @@ export default function GameDetailPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-600 dark:text-gray-400">読み込み中...</div>
       </div>
     );
@@ -74,13 +74,13 @@ export default function GameDetailPage({ params }: PageProps) {
 
   if (error || !gameData) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-red-600 dark:text-red-400">エラーが発生しました</div>
       </div>
     );
   }
 
-  // チーム情報を取得（チーム名から推測）
+  // チーム情報を取得
   const getTeamInfo = (teamName: string) => {
     for (const [, team] of Object.entries(TEAMS)) {
       if (teamName.includes(team.shortName) || teamName.includes(team.fullName)) {
@@ -94,7 +94,7 @@ export default function GameDetailPage({ params }: PageProps) {
   const homeTeamInfo = getTeamInfo(gameData.homeTeam);
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg">
+    <div className="min-h-screen">
       {/* ヘッダー */}
       <div className="bg-light-card dark:bg-dark-card border-b border-light-border dark:border-dark-border sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center">

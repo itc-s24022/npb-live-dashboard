@@ -109,14 +109,14 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-light-bg dark:bg-dark-bg flex items-center justify-center pb-20">
+      <div className="min-h-screen flex items-center justify-center pb-20">
         <div className="text-gray-900 dark:text-white">読み込み中...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-light-bg dark:bg-dark-bg pb-20">
+    <div className="min-h-screen pb-20">
       <div className="bg-light-card dark:bg-dark-card p-4 border-b border-light-border dark:border-dark-border">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-4">試合カレンダー</h1>
         

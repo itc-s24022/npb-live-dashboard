@@ -5,7 +5,7 @@ export default function CalendarPage() {
     <div>
       {/* ヘッダー */}
       <header className="flex items-center justify-between p-4">
-        <h1>NPB Live</h1>
+        <h1 className="text-gray-900 dark:text-white">NPB Live</h1>
         
         <div className="flex gap-3">
           <NotificationButton />

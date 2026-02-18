@@ -72,7 +72,7 @@ export default function MonthSelector() {
           onClick={() => setShowMonthPicker(false)}
         >
           <div
-            className="bg-white dark:bg-dark-card rounded-lg p-6 max-w-md w-full"
+            className="bg-light-card dark:bg-dark-card rounded-lg p-6 max-w-md w-full"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">

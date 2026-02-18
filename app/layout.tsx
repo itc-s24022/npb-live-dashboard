@@ -32,18 +32,20 @@ export default function RootLayout({
         />
       </head>
       <body
-        style={{ backgroundColor: '#f5f5f5', color: '#1a1d29' }}
+        className="bg-light-bg dark:bg-dark-bg text-gray-900 dark:text-white min-h-screen w-full"
         suppressHydrationWarning
       >
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var s=localStorage.getItem('npb-live-storage');if(s){var p=JSON.parse(s);if(p&&p.state&&p.state.settings&&p.state.settings.theme==='dark'){document.body.style.backgroundColor='#1a1d29';document.body.style.color='white'}}}catch(e){}})();`,
+            __html: `(function(){try{var s=localStorage.getItem('npb-live-storage');if(s){var p=JSON.parse(s);if(p&&p.state&&p.state.settings&&p.state.settings.theme==='dark'){document.body.style.backgroundColor='#1a1d29';document.body.style.color='white'}else{document.body.style.backgroundColor='#f5f5f5';document.body.style.color='#1a1d29'}}}catch(e){}})();`,
           }}
         />
         <ThemeProvider>
           <Header />
-          <main className="pt-14 pb-16 min-h-screen max-w-screen-lg mx-auto bg-light-bg dark:bg-dark-bg">
-            {children}
+          <main className="pt-14 pb-16 min-h-screen bg-light-bg dark:bg-dark-bg">
+            <div className="max-w-screen-lg mx-auto">
+              {children}
+            </div>
           </main>
           <BottomNavigation />
           <TeamSelectorModal />

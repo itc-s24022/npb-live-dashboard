@@ -14,12 +14,12 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-dark-bg px-4">
+    <div className="flex items-center justify-center min-h-screen px-4">
       <div className="text-center max-w-md">
-        <h2 className="text-2xl font-bold text-white mb-4">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
           エラーが発生しました
         </h2>
-        <p className="text-gray-400 mb-6">
+        <p className="text-gray-600 dark:text-gray-400 mb-6">
           申し訳ございません。予期しないエラーが発生しました。
         </p>
         <button

@@ -20,7 +20,7 @@ export default function MonthStats({ games }: MonthStatsProps) {
         game => game.homeTeam === selectedTeam || game.awayTeam === selectedTeam
       ).length;
 
-  const teamName = selectedTeam === 'all' ? '' : TEAMS[selectedTeam].shortName;
+  const teamName = selectedTeam === 'all' ? '' : TEAMS[selectedTeam]?.shortName || '';
 
   return (
     <div className="px-4 py-3 bg-light-card dark:bg-dark-card border-b border-light-border dark:border-dark-border">

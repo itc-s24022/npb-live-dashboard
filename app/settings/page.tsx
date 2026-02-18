@@ -55,7 +55,6 @@ export default function SettingsPage() {
   const handleThemeToggle = () => {
     const newTheme = settings.theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    document.documentElement.classList.toggle('dark');
   };
 
   const handleClearCache = () => {
