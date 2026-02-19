@@ -30,6 +30,36 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+// NPBスクレイピングで取得される略称 → TEAMSのキーへのマッピング
+const SCRAPED_NAME_MAP: Record<string, string> = {
+  '読　売': 'giants',
+  '読 売': 'giants',
+  '読売': 'giants',
+  '巨人': 'giants',
+  '阪　神': 'hanshin',
+  '阪 神': 'hanshin',
+  '阪神': 'hanshin',
+  '広　島': 'carp',
+  '広 島': 'carp',
+  '広島': 'carp',
+  '中　日': 'dragons',
+  '中 日': 'dragons',
+  '中日': 'dragons',
+  'ＤｅＮＡ': 'baystars',
+  'DeNA': 'baystars',
+  'ヤクルト': 'swallows',
+  'ソフトバンク': 'hawks',
+  '西　武': 'lions',
+  '西 武': 'lions',
+  '西武': 'lions',
+  'ロッテ': 'marines',
+  '楽　天': 'eagles',
+  '楽 天': 'eagles',
+  '楽天': 'eagles',
+  'オリックス': 'buffaloes',
+  '日本ハム': 'fighters',
+};
+
 export default function GameDetailPage({ params }: PageProps) {
   const { id } = React.use(params);
   
@@ -80,13 +110,32 @@ export default function GameDetailPage({ params }: PageProps) {
     );
   }
 
-  // チーム情報を取得
+  // チーム情報を取得（スクレイピング名対応版）
   const getTeamInfo = (teamName: string) => {
+    // 1. まずスクレイピング略称マップで完全一致を試す
+    const trimmed = teamName.trim();
+    if (SCRAPED_NAME_MAP[trimmed]) {
+      return TEAMS[SCRAPED_NAME_MAP[trimmed]];
+    }
+
+    // 2. スペースを除去して再度マップを確認
+    const noSpace = trimmed.replace(/[\s　]/g, '');
+    for (const [key, teamId] of Object.entries(SCRAPED_NAME_MAP)) {
+      const keyNoSpace = key.replace(/[\s　]/g, '');
+      if (noSpace === keyNoSpace || noSpace.includes(keyNoSpace) || keyNoSpace.includes(noSpace)) {
+        return TEAMS[teamId];
+      }
+    }
+
+    // 3. TEAMSのfullName/shortNameで部分一致を試す
     for (const [, team] of Object.entries(TEAMS)) {
-      if (teamName.includes(team.shortName) || teamName.includes(team.fullName)) {
+      if (noSpace.includes(team.shortName.replace(/[\s　]/g, '')) || 
+          noSpace.includes(team.fullName.replace(/[\s　]/g, '')) ||
+          team.fullName.replace(/[\s　]/g, '').includes(noSpace)) {
         return team;
       }
     }
+
     return null;
   };
 
@@ -217,17 +266,23 @@ export default function GameDetailPage({ params }: PageProps) {
                 <tr className="border-b border-light-border dark:border-dark-border">
                   <td className="py-3 pr-3">
                     <div className="flex items-center whitespace-nowrap">
-                      {awayTeamInfo && (
-                        <div 
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-2"
-                          style={{ backgroundColor: awayTeamInfo.primaryColor, color: awayTeamInfo.secondaryColor }}
-                        >
-                          {awayTeamInfo.icon}
-                        </div>
+                      {awayTeamInfo ? (
+                        <>
+                          <div 
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-2 flex-shrink-0"
+                            style={{ backgroundColor: awayTeamInfo.primaryColor, color: awayTeamInfo.secondaryColor }}
+                          >
+                            {awayTeamInfo.icon}
+                          </div>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
+                            {awayTeamInfo.shortName}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          {gameData.awayTeam}
+                        </span>
                       )}
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
-                        {awayTeamInfo ? awayTeamInfo.shortName : gameData.awayTeam}
-                      </span>
                     </div>
                   </td>
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((idx) => {
@@ -246,17 +301,23 @@ export default function GameDetailPage({ params }: PageProps) {
                 <tr>
                   <td className="py-3 pr-3">
                     <div className="flex items-center whitespace-nowrap">
-                      {homeTeamInfo && (
-                        <div 
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-2"
-                          style={{ backgroundColor: homeTeamInfo.primaryColor, color: homeTeamInfo.secondaryColor }}
-                        >
-                          {homeTeamInfo.icon}
-                        </div>
+                      {homeTeamInfo ? (
+                        <>
+                          <div 
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mr-2 flex-shrink-0"
+                            style={{ backgroundColor: homeTeamInfo.primaryColor, color: homeTeamInfo.secondaryColor }}
+                          >
+                            {homeTeamInfo.icon}
+                          </div>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
+                            {homeTeamInfo.shortName}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          {gameData.homeTeam}
+                        </span>
                       )}
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
-                        {homeTeamInfo ? homeTeamInfo.shortName : gameData.homeTeam}
-                      </span>
                     </div>
                   </td>
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((idx) => {
